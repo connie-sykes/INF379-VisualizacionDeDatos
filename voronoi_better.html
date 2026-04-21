@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Voronoi Treemap Musical Interactivo</title>
+  <style>
+    :root {
+      --color-background-primary: #ffffff;
+      --color-background-secondary: #f4f4f9;
+      --color-border-secondary: #cccccc;
+      --color-text-primary: #111111;
+      --color-text-secondary: #444444;
+      --color-text-tertiary: #888888;
+    }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+      margin: 0;
+      padding: 20px;
+      background-color: var(--color-background-secondary);
+    }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+    
+    #viz-container {
+      background: var(--color-background-primary);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    #tooltip {
+      position: absolute;
+      pointer-events: none;
+      opacity: 0;
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid var(--color-border-secondary);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
+      max-width: 260px;
+      line-height: 1.5;
+      z-index: 20;
+      transition: opacity 0.15s ease-in-out;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+      backdrop-filter: blur(4px);
+    }
+  </style>
+</head>
+<body>
+
+<div id="viz-container">
+  <h2 class="sr-only">Mapa de árbol Voronoi: palabras clave musicales por género y su impacto emocional</h2>
+
+  <div id="controls" style="display:flex;align-items:center;gap:16px;padding:12px 0 4px;flex-wrap:wrap;">
+    <span style="font-size:13px;color:var(--color-text-secondary);font-weight:bold;">Filtrar por género:</span>
+    <div id="genre-btns" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+  </div>
+
+  <div style="display:flex;gap:16px;padding:8px 0 20px;align-items:center;flex-wrap:wrap; border-bottom: 1px solid var(--color-border-secondary); margin-bottom: 20px;">
+    <span style="font-size:12px;color:var(--color-text-secondary);font-weight:bold;">Fondo (Valencia Emocional):</span>
+    <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--color-text-secondary);">
+      <span style="width:14px;height:14px;border-radius:3px;background:#FAECE7;border:1px solid #C0392B;display:inline-block;"></span>Negativa (0–0.4)
+    </span>
+    <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--color-text-secondary);">
+      <span style="width:14px;height:14px;border-radius:3px;background:#FAEEDA;border:1px solid #E8A838;display:inline-block;"></span>Neutra (0.4–0.65)
+    </span>
+    <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--color-text-secondary);">
+      <span style="width:14px;height:14px;border-radius:3px;background:#E1F5EE;border:1px solid #1D9E75;display:inline-block;"></span>Positiva (0.65–1)
+    </span>
+  </div>
+
+  <div id="viz" style="position:relative;width:100%; max-width: 850px; margin: 0 auto;"></div>
+</div>
+
+<div id="tooltip"></div>
+
+<script src="https://d3js.org/d3.v6.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-weighted-voronoi@1.1.3/build/d3-weighted-voronoi.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-voronoi-map@2.1.1/build/d3-voronoi-map.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-voronoi-treemap@1.1.2/build/d3-voronoi-treemap.min.js"></script>
+
+<script>
+// 1. Colores altamente contrastantes para distinguir géneros
+const GENRES = [
+  {id:"pop",       label:"Pop",        hue:"#2563eb"}, // Azul fuerte
+  {id:"hiphop",    label:"Hip-Hop",    hue:"#9333ea"}, // Morado vibrante
+  {id:"rock",      label:"Rock",       hue:"#dc2626"}, // Rojo intenso
+  {id:"reggaeton", label:"Reggaetón",  hue:"#ea580c"}, // Naranja fuerte
+  {id:"indie",     label:"Indie",      hue:"#16a34a"}, // Verde esmeralda
+  {id:"country",   label:"Country",    hue:"#475569"}, // Gris pizarra
+];
+
+const KEYWORDS = [
+  {label:"love",        genre:"pop",       freq:90, valence:0.82, impact:"Eleva oxitocina; reduce ansiedad social"},
+  {label:"dance",       genre:"pop",       freq:70, valence:0.88, impact:"Activa dopamina; mejora estado de ánimo"},
+  {label:"party",       genre:"pop",       freq:55, valence:0.75, impact:"Estimula euforia; puede generar FOMO"},
+  {label:"broken",      genre:"pop",       freq:45, valence:0.30, impact:"Valida el duelo emocional; catarsis"},
+  {label:"money",       genre:"hiphop",    freq:85, valence:0.60, impact:"Refuerza motivación; puede generar envidia"},
+  {label:"hustle",      genre:"hiphop",    freq:72, valence:0.65, impact:"Activa resiliencia y autoeficacia"},
+  {label:"pain",        genre:"hiphop",    freq:68, valence:0.28, impact:"Legitima sufrimiento; reduce aislamiento"},
+  {label:"power",       genre:"hiphop",    freq:60, valence:0.70, impact:"Refuerza autoestima y empoderamiento"},
+  {label:"freedom",     genre:"rock",      freq:80, valence:0.78, impact:"Sistema de recompensa; libera tensión"},
+  {label:"rage",        genre:"rock",      freq:65, valence:0.35, impact:"Canaliza ira; reduce agresividad acumulada"},
+  {label:"scream",      genre:"rock",      freq:50, valence:0.40, impact:"Libera cortisol; efecto catártico"},
+  {label:"dark",        genre:"rock",      freq:58, valence:0.22, impact:"Puede aumentar rumiación en vulnerables"},
+  {label:"cuerpo",      genre:"reggaeton", freq:82, valence:0.55, impact:"Activa sistema sensorial; posible objetificación"},
+  {label:"noche",       genre:"reggaeton", freq:75, valence:0.62, impact:"Asocia placer con contextos nocturnos"},
+  {label:"ritmo",       genre:"reggaeton", freq:88, valence:0.85, impact:"Sincronía rítmica mejora ánimo colectivo"},
+  {label:"calor",       genre:"reggaeton", freq:60, valence:0.72, impact:"Estimula respuesta física y bienestar"},
+  {label:"alone",       genre:"indie",     freq:62, valence:0.25, impact:"Valida soledad; profundiza introspección"},
+  {label:"wonder",      genre:"indie",     freq:55, valence:0.80, impact:"Estimula curiosidad y contemplación"},
+  {label:"lost",        genre:"indie",     freq:68, valence:0.32, impact:"Normaliza la incertidumbre existencial"},
+  {label:"soul",        genre:"indie",     freq:50, valence:0.70, impact:"Conecta con propósito y profundidad emocional"},
+  {label:"home",        genre:"country",   freq:78, valence:0.85, impact:"Activa pertenencia y seguridad"},
+  {label:"faith",       genre:"country",   freq:65, valence:0.80, impact:"Refuerza comunidad y resiliencia"},
+  {label:"heartbreak",  genre:"country",   freq:72, valence:0.28, impact:"Procesa pérdida; refuerza empatía social"},
+  {label:"road",        genre:"country",   freq:58, valence:0.68, impact:"Activa anhelo de libertad y aventura"},
+];
+
+function valenciaColor(v) {
+  if (v < 0.4)  return {fill:"#FAECE7", text:"#C0392B"}; // Negativo (Rojizo)
+  if (v < 0.65) return {fill:"#FAEEDA", text:"#E8A838"}; // Neutro (Naranja/Ámbar)
+  return               {fill:"#E1F5EE", text:"#1D9E75"}; // Positivo (Verdoso)
+}
+
+// Ampliamos el canvas para dar espacio a los textos exteriores
+const W = 850, H = 850;
+const RADIUS = 320; 
+const CX = W / 2, CY = H / 2;
+let activeGenre = null;
+
+const genreMap = {};
+GENRES.forEach(g => genreMap[g.id] = g);
+
+// Polígono base circular
+const circlePolygon = Array.from({ length: 128 }, (_, i) => {
+  const angle = (i / 128) * 2 * Math.PI;
+  return [CX + RADIUS * Math.cos(angle), CY + RADIUS * Math.sin(angle)];
+});
+
+const svg = d3.select("#viz").append("svg")
+  .attr("viewBox", `0 0 ${W} ${H}`)
+  .attr("width", "100%")
+  .attr("height", "100%")
+  .style("display","block");
+
+// Definir un clip-path circular para asegurar bordes exteriores perfectos
+svg.append("defs").append("clipPath")
+   .attr("id", "circle-clip")
+   .append("circle")
+   .attr("cx", CX).attr("cy", CY).attr("r", RADIUS);
+
+// El grupo principal
+const mainG = svg.append("g");
+// El grupo que contiene los polígonos y está enmascarado en círculo
+const mapG = mainG.append("g").attr("clip-path", "url(#circle-clip)");
+
+const tip = document.getElementById("tooltip");
+
+function buildTreeData(filter) {
+  const kids = GENRES.map(g => {
+    const words = KEYWORDS.filter(k => k.genre === g.id && (!filter || filter === g.id));
+    if (!words.length) return null;
+    return {
+      id: g.id,
+      label: g.label,
+      children: words.map(k => ({...k, value: k.freq}))
+    };
+  }).filter(Boolean);
+  return {id:"root", children: kids};
+}
+
+function render(filter) {
+  mapG.selectAll("*").remove();
+  mainG.selectAll(".outer-labels").remove(); // Limpiar labels exteriores
+
+  const treeData = buildTreeData(filter);
+  if (treeData.children.length === 0) return;
+
+  const root = d3.hierarchy(treeData)
+    .sum(d => d.value || 0)
+    .sort((a,b) => b.value - a.value);
+
+  const voronoiTreemap = d3.voronoiTreemap()
+    .clip(circlePolygon)
+    .convergenceRatio(0.01)
+    .maxIterationCount(50)
+    .minWeightRatio(0.01);
+
+  voronoiTreemap(root);
+  const drawPolygon = d3.line().x(d => d[0]).y(d => d[1]).curve(d3.curveLinearClosed);
+
+  // 1. Dibujar celdas individuales (Palabras)
+  const leaves = root.leaves();
+  const cells = mapG.selectAll(".cell")
+    .data(leaves)
+    .enter()
+    .append("g")
+    .attr("class", "cell")
+    .style("cursor", "pointer");
+
+  cells.append("path")
+    .attr("d", d => drawPolygon(d.polygon))
+    .attr("fill", d => valenciaColor(d.data.valence).fill) // Fondo según valencia
+    .attr("stroke", d => genreMap[d.data.genre].hue)       // Borde con color del GÉNERO
+    .attr("stroke-width", 1.5)
+    .attr("opacity", 0.9);
+
+  // Textos para las palabras
+  cells.append("text")
+    .attr("x", d => d.polygon.site.x)
+    .attr("y", d => d.polygon.site.y)
+    .attr("text-anchor", "middle")
+    .attr("dominant-baseline", "middle")
+    .attr("font-size", d => Math.max(11, Math.sqrt(d.value) * 1.6) + "px")
+    .attr("font-weight", "600")
+    .attr("fill", "#111111")
+    .text(d => d.data.label)
+    .style("pointer-events", "none");
+
+  // 2. Dibujar Bordes Gruesos de Género (Incluye el borde exterior circular por el clip-path)
+  const genres = root.descendants().filter(d => d.depth === 1);
+  
+  mapG.selectAll(".genre-border")
+    .data(genres)
+    .enter()
+    .append("path")
+    .attr("class", "genre-border")
+    .attr("d", d => drawPolygon(d.polygon))
+    .attr("fill", "none")
+    .attr("stroke", d => genreMap[d.data.id].hue)
+    .attr("stroke-width", 7) // Trazo grueso para separar "continentes" y bordes
+    .attr("opacity", 0.8)
+    .style("pointer-events", "none");
+
+  // 3. Dibujar Títulos Externos Calculados Radialemente
+  const labelG = mainG.append("g").attr("class", "outer-labels");
+  
+  labelG.selectAll(".genre-label")
+    .data(genres)
+    .enter()
+    .append("text")
+    .attr("class", "genre-label")
+    .text(d => genreMap[d.data.id].label.toUpperCase())
+    .attr("font-size", "16px")
+    .attr("font-weight", "bold")
+    .attr("letter-spacing", "1px")
+    .attr("fill", d => genreMap[d.data.id].hue) // Mismo color que su borde
+    .attr("text-anchor", "middle")
+    .attr("dominant-baseline", "middle")
+    .each(function(d) {
+       // Calcular la dirección desde el centro para posicionar el texto fuera
+       const centroid = d3.polygonCentroid(d.polygon);
+       const dx = centroid[0] - CX;
+       const dy = centroid[1] - CY;
+       const len = Math.sqrt(dx*dx + dy*dy);
+       // Añadir 45px al radio original para ubicarlo fuera de la circunferencia
+       const padding = 45; 
+       const nx = CX + (dx/len) * (RADIUS + padding);
+       const ny = CY + (dy/len) * (RADIUS + padding);
+
+       d3.select(this)
+         .attr("x", nx)
+         .attr("y", ny);
+    });
+
+  // 4. Interactividad Avanzada (Tooltip y Hovering)
+  cells.on("mousemove", function(event, d) {
+    const kw = d.data;
+    const gInfo = genreMap[kw.genre];
+    const vc = valenciaColor(kw.valence);
+    const vLabel = kw.valence < 0.4 ? "Negativa" : kw.valence < 0.65 ? "Neutra" : "Positiva";
+    
+    // Resaltar celda con el color del género fuerte
+    d3.select(this).select("path")
+      .attr("opacity", 1)
+      .attr("stroke-width", 4)
+      .raise(); // Trae el borde al frente para que no se oculte
+
+    tip.innerHTML = `
+      <div style="font-weight:bold;font-size:14px;color:${gInfo.hue};margin-bottom:6px;border-bottom:1px solid ${gInfo.hue};padding-bottom:4px;">
+        ${gInfo.label.toUpperCase()}
+      </div>
+      <div style="margin-bottom:8px;">
+        <span style="font-size:16px;font-weight:700;color:var(--color-text-primary);">${kw.label}</span>
+      </div>
+      <div style="color:var(--color-text-secondary);font-size:12px;margin-bottom:10px;font-style:italic;">
+        "${kw.impact}"
+      </div>
+      <table style="width:100%;font-size:12px;border-collapse:collapse;">
+        <tr>
+          <td style="color:var(--color-text-tertiary);padding-bottom:4px;">Valencia Emocional:</td>
+          <td style="text-align:right;font-weight:bold;color:${vc.text};padding-bottom:4px;">${vLabel} (${(kw.valence*100).toFixed(0)}%)</td>
+        </tr>
+        <tr>
+          <td style="color:var(--color-text-tertiary);">Frecuencia / Área:</td>
+          <td style="text-align:right;font-weight:bold;">${kw.freq}</td>
+        </tr>
+      </table>
+    `;
+    
+    const vr = document.getElementById("viz-container").getBoundingClientRect();
+    const px = event.clientX - vr.left;
+    const py = event.clientY - vr.top;
+    
+    // Evitar que el tooltip se salga de la pantalla
+    let finalLeft = px + 20;
+    let finalTop = py + 20;
+    if (finalLeft + 260 > vr.width) finalLeft = px - 280;
+    
+    tip.style.left = finalLeft + "px";
+    tip.style.top = finalTop + "px";
+    tip.style.opacity = "1";
+  })
+  .on("mouseleave", function(event, d) { 
+    // Restaurar estilo normal
+    d3.select(this).select("path")
+      .attr("opacity", 0.9)
+      .attr("stroke-width", 1.5);
+    tip.style.opacity = "0"; 
+  });
+}
+
+// Lógica de los botones superiores
+const btnContainer = document.getElementById("genre-btns");
+const allBtn = document.createElement("button");
+allBtn.textContent = "Todos";
+allBtn.style.cssText = "font-size:12px;padding:5px 14px;border-radius:6px;cursor:pointer;border:1px solid var(--color-border-secondary);background:var(--color-background-secondary);color:var(--color-text-primary);font-family:inherit;font-weight:600;";
+allBtn.onclick = () => { activeGenre = null; render(null); updateBtns(null); };
+btnContainer.appendChild(allBtn);
+
+const gBtns = {};
+GENRES.forEach(g => {
+  const btn = document.createElement("button");
+  btn.textContent = g.label;
+  btn.style.cssText = `font-size:12px;padding:5px 14px;border-radius:6px;cursor:pointer;border:2px solid ${g.hue};background:transparent;color:${g.hue};font-family:inherit;font-weight:600;transition:all 0.2s;`;
+  btn.onclick = () => { activeGenre = g.id; render(g.id); updateBtns(g.id); };
+  btnContainer.appendChild(btn);
+  gBtns[g.id] = btn;
+});
+
+function updateBtns(active) {
+  allBtn.style.background = active === null ? "#111" : "var(--color-background-secondary)";
+  allBtn.style.color = active === null ? "#fff" : "var(--color-text-primary)";
+  allBtn.style.border = active === null ? "1px solid #111" : "1px solid var(--color-border-secondary)";
+  
+  GENRES.forEach(g => {
+    const b = gBtns[g.id];
+    if (active === g.id) {
+      b.style.background = g.hue;
+      b.style.color = "#fff";
+    } else {
+      b.style.background = "transparent";
+      b.style.color = g.hue;
+    }
+  });
+}
+
+// Render inicial
+updateBtns(null);
+render(null);
+</script>
+</body>
+</html>
