@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Diagrama ternario: música y estado de ánimo</title>
+  <style>
+    :root {
+      --bg: #f7f4ee;
+      --ink: #1d2730;
+      --muted: #5f6871;
+      --line: #cfc7ba;
+      --panel: #fffdf8;
+      --teal: #167a7f;
+      --coral: #d85d4f;
+      --gold: #d6a21e;
+      --blue: #315a9f;
+      --green: #2f8d54;
+      --shadow: 0 14px 35px rgba(37, 35, 31, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0 34px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: end;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 18px;
+      margin-bottom: 22px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.55rem, 2.4vw, 2.55rem);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 10px 0 0;
+      color: var(--muted);
+      max-width: 760px;
+      line-height: 1.45;
+      font-size: 1rem;
+    }
+
+    .sample {
+      min-width: 132px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 12px 14px;
+      text-align: right;
+      box-shadow: var(--shadow);
+    }
+
+    .sample strong {
+      display: block;
+      font-size: 1.9rem;
+      line-height: 1;
+    }
+
+    .sample span {
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 330px;
+      gap: 22px;
+      align-items: stretch;
+    }
+
+    .viz-wrap,
+    .side {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+
+    .viz-wrap {
+      position: relative;
+      min-height: 640px;
+      padding: 16px;
+    }
+
+    #chart {
+      display: block;
+      width: 100%;
+      height: min(72vw, 650px);
+      min-height: 560px;
+    }
+
+    .side {
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .side h2 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+      line-height: 1.2;
+    }
+
+    .side p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.92rem;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      padding: 10px 8px;
+      min-height: 82px;
+      background: #faf7ef;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 1.35rem;
+      line-height: 1;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 0.75rem;
+      line-height: 1.18;
+    }
+
+    .legend {
+      display: grid;
+      gap: 8px;
+      font-size: 0.86rem;
+      color: var(--muted);
+    }
+
+    .legend-row {
+      display: grid;
+      grid-template-columns: 14px 1fr;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 0, 0, 0.2);
+    }
+
+    .group-list {
+      display: grid;
+      gap: 8px;
+      max-height: 270px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .group-item {
+      border-left: 4px solid var(--teal);
+      padding: 8px 10px;
+      background: #faf7ef;
+      font-size: 0.82rem;
+      line-height: 1.25;
+    }
+
+    .group-item b {
+      display: block;
+      margin-bottom: 3px;
+      color: var(--ink);
+    }
+
+    .group-item span {
+      color: var(--muted);
+    }
+
+    .tooltip {
+      position: absolute;
+      pointer-events: none;
+      opacity: 0;
+      transform: translate(-50%, calc(-100% - 12px));
+      width: min(300px, calc(100vw - 48px));
+      background: #111820;
+      color: white;
+      padding: 12px 13px;
+      border-radius: 6px;
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.25);
+      font-size: 0.84rem;
+      line-height: 1.35;
+      z-index: 4;
+      transition: opacity 120ms ease;
+    }
+
+    .tooltip b {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .axis-label,
+    .tick-label {
+      font-size: 15px;
+      fill: var(--ink);
+      font-weight: 720;
+    }
+
+    .axis-note {
+      font-size: 12px;
+      fill: var(--muted);
+      font-weight: 520;
+    }
+
+    .grid-line {
+      stroke: rgba(78, 77, 72, 0.22);
+      stroke-width: 1;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .triangle-outline {
+      fill: #fcfaf5;
+      stroke: #9f978a;
+      stroke-width: 1.6;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .point {
+      stroke: white;
+      stroke-width: 2.5;
+      vector-effect: non-scaling-stroke;
+      cursor: pointer;
+      transition: opacity 120ms ease, stroke-width 120ms ease;
+    }
+
+    .point:hover {
+      stroke-width: 4;
+    }
+
+    .point-label {
+      fill: #1d2730;
+      font-size: 10px;
+      font-weight: 760;
+      pointer-events: none;
+      text-anchor: middle;
+    }
+
+    .caption {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 930px) {
+      header,
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .sample {
+        width: 150px;
+        text-align: left;
+      }
+
+      .viz-wrap {
+        min-height: 540px;
+      }
+
+      #chart {
+        height: 560px;
+        min-height: 520px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Mapa ternario de estrategias musicales frente a emociones negativas</h1>
+        <p class="subtitle">
+          Cada círculo representa una combinación de edad y horas de escucha. Su posición indica si ese grupo tiende a elegir música congruente con la emoción, música opuesta para cambiar el ánimo, o si la elección no depende del estado emocional.
+        </p>
+      </div>
+      <div class="sample">
+        <strong id="totalRows">0</strong>
+        <span>respuestas del dataset</span>
+      </div>
+    </header>
+
+    <section class="layout">
+      <div class="viz-wrap">
+        <svg id="chart" viewBox="0 0 820 690" role="img" aria-label="Diagrama ternario de estrategias musicales por edad y horas de escucha"></svg>
+        <div class="tooltip" id="tooltip"></div>
+        <p class="caption">
+          Lectura: los círculos cercanos a un vértice concentran sus respuestas en esa estrategia. Los círculos hacia el centro mezclan estrategias. El tamaño indica cantidad de respuestas y el color indica cuánto afecta la música al estado de ánimo en promedio.
+        </p>
+      </div>
+
+      <aside class="side">
+        <section>
+          <h2>Distribución general</h2>
+          <div class="metric-grid" id="metrics"></div>
+        </section>
+
+        <section>
+          <h2>Color del círculo</h2>
+          <div class="legend">
+            <div class="legend-row"><span class="swatch" style="background:#2f8d54"></span><span>Promedio bajo: afecta ligeramente/moderadamente</span></div>
+            <div class="legend-row"><span class="swatch" style="background:#d6a21e"></span><span>Promedio medio: afecta moderadamente</span></div>
+            <div class="legend-row"><span class="swatch" style="background:#d85d4f"></span><span>Promedio alto: afecta considerablemente</span></div>
+          </div>
+        </section>
+
+        <section>
+          <h2>Hallazgo desde los datos</h2>
+          <p id="insight"></p>
+        </section>
+
+        <section>
+          <h2>Grupos con más respuestas</h2>
+          <div class="group-list" id="groupList"></div>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <script type="text/plain" id="raw-data">"Marca temporal","¿Qué edad tienes?","¿Cuantas horas de música escuchas al día aproximadamente?","¿Cuanto afecta la música tu estado de ánimo?","Cuando experimentas una emoción negativa (como tristeza o estrés), ¿qué estrategia sueles utilizar al elegir qué música escuchar?"
+"2026/05/11 1:03:15 a. m. GMT-4","Entre 22 y 25 años","Entre 3 y 5 horas","Me afecta considerablemente","Mi elección musical no depende de mi estado de ánimo en ese momento"
+"2026/05/11 1:04:07 a. m. GMT-4","Entre 18 y 21 años","Entre 3 y 5 horas","Me afecta moderadamente","Escucho música que refleja como me siento (congruente con mi emoción)"
+"2026/05/11 1:06:32 a. m. GMT-4","Entre 22 y 25 años","Entre 3 y 5 horas","Me afecta considerablemente","Escucho música que refleja como me siento (congruente con mi emoción)"
+"2026/05/11 1:07:23 a. m. GMT-4","Entre 18 y 21 años","Más de 8 horas","Me afecta moderadamente","Mi elección musical no depende de mi estado de ánimo en ese momento"
+"2026/05/11 1:11:30 a. m. GMT-4","Entre 22 y 25 años","Entre 5 y 8 horas","Me afecta considerablemente","Escucho música que refleja como me siento (congruente con mi emoción)"
+"2026/05/11 1:19:46 a. m. GMT-4","Entre 18 y 21 años","Entre 0 y 1 hora","Me afecta considerablemente","Escucho música alegre o relajante para intentar cambiar cómo me siento (opuesta a mi emoción)"
+"2026/05/11 1:23:45 a. m. GMT-4","Entre 22 y 25 años","Entre 5 y 8 horas","Me afecta moderadamente","Escucho música que refleja como me siento (congruente con mi emoción)"
+"2026/05/11 2:47:25 p. m. GMT-4","Entre 18 y 21 años","Entre 3 y 5 horas","Me afecta moderadamente","Escucho música que refleja como me siento (congruente con mi emoción)"
+"2026/05/11 3:28:01 p. m. GMT-4","Mayor de 25 años","Entre 3 y 5 horas","Me afecta considerablemente","Escucho música alegre o relajante para intentar cambiar cómo me siento (opuesta a mi emoción)"
+"2026/05/11 3:29:48 p. m. GMT-4","Mayor de 25 años","Entre 3 y 5 horas","Me afecta considerablemente","Escucho música que refleja como me siento (congruente con mi emoción)"
+"2026/05/11 3:50:53 p. m. GMT-4","Entre 22 y 25 años","Entre 1 y 3 horas","Me afecta considerablemente","Escucho música alegre o relajante para intentar cambiar cómo me siento (opuesta a mi emoción)"
+"2026/05/11 3:52:31 p. m. GMT-4","Entre 22 y 25 años","Entre 3 y 5 horas","Me afecta ligeramente","Mi elección musical no depende de mi estado de ánimo en ese momento"
+"2026/05/11 3:53:31 p. m. GMT-4","Entre 22 y 25 años","Entre 3 y 5 horas","Me afecta moderadamente","Escucho música alegre o relajante para intentar cambiar cómo me siento (opuesta a mi emoción)"
+"2026/05/11 4:05:21 p. m. GMT-4","Entre 18 y 21 años","Entre 0 y 1 hora","Me afecta moderadamente","Escucho música que refleja como me siento (congruente con mi emoción)"
+"2026/05/11 4:52:20 p. m. GMT-4","Entre 22 y 25 años","Entre 3 y 5 horas","Me afecta considerablemente","Escucho música que refleja como me siento (congruente con mi emoción)"
+"2026/05/11 5:27:58 p. m. GMT-4","Entre 22 y 25 años","Entre 5 y 8 horas","Me afecta moderadamente","Escucho música que refleja como me siento (congruente con mi emoción)"
+"2026/05/11 6:04:20 p. m. GMT-4","Mayor de 25 años","Entre 1 y 3 horas","Me afecta moderadamente","Mi elección musical no depende de mi estado de ánimo en ese momento"
+"2026/05/11 6:17:39 p. m. GMT-4","Mayor de 25 años","Entre 0 y 1 hora","Me afecta moderadamente","Escucho música que refleja como me siento (congruente con mi emoción)"
+"2026/05/11 6:32:07 p. m. GMT-4","Entre 18 y 21 años","Entre 3 y 5 horas","Me afecta ligeramente","Escucho música alegre o relajante para intentar cambiar cómo me siento (opuesta a mi emoción)"
+"2026/05/11 8:16:12 p. m. GMT-4","Entre 22 y 25 años","Entre 0 y 1 hora","Me afecta moderadamente","Escucho música alegre o relajante para intentar cambiar cómo me siento (opuesta a mi emoción)"
+"2026/05/11 8:16:15 p. m. GMT-4","Entre 22 y 25 años","Entre 3 y 5 horas","Me afecta moderadamente","Escucho música que refleja como me siento (congruente con mi emoción)"
+"2026/05/11 8:16:35 p. m. GMT-4","Entre 22 y 25 años","Entre 1 y 3 horas","Me afecta moderadamente","Mi elección musical no depende de mi estado de ánimo en ese momento"
+"2026/05/11 10:48:03 p. m. GMT-4","Mayor de 25 años","Entre 3 y 5 horas","Me afecta considerablemente","Escucho música alegre o relajante para intentar cambiar cómo me siento (opuesta a mi emoción)"
+"2026/05/12 12:09:27 a. m. GMT-4","Entre 18 y 21 años","Entre 5 y 8 horas","Me afecta moderadamente","Escucho música que refleja como me siento (congruente con mi emoción)"
+"2026/05/12 5:23:11 p. m. GMT-4","Entre 22 y 25 años","Entre 3 y 5 horas","Me afecta moderadamente","Mi elección musical no depende de mi estado de ánimo en ese momento"
+"2026/05/13 9:30:50 a. m. GMT-4","Mayor de 25 años","Entre 0 y 1 hora","Me afecta considerablemente","Escucho música que refleja como me siento (congruente con mi emoción)"</script>
+
+  <script>
+    const columns = {
+      age: "¿Qué edad tienes?",
+      hours: "¿Cuantas horas de música escuchas al día aproximadamente?",
+      effect: "¿Cuanto afecta la música tu estado de ánimo?",
+      strategy: "Cuando experimentas una emoción negativa (como tristeza o estrés), ¿qué estrategia sueles utilizar al elegir qué música escuchar?"
+    };
+
+    const strategies = {
+      congruent: "Escucho música que refleja como me siento (congruente con mi emoción)",
+      opposite: "Escucho música alegre o relajante para intentar cambiar cómo me siento (opuesta a mi emoción)",
+      independent: "Mi elección musical no depende de mi estado de ánimo en ese momento"
+    };
+
+    const strategyLabels = {
+      congruent: "Congruente con la emoción",
+      opposite: "Opuesta a la emoción",
+      independent: "No depende del ánimo"
+    };
+
+    const effectScore = {
+      "Me afecta ligeramente": 1,
+      "Me afecta moderadamente": 2,
+      "Me afecta considerablemente": 3
+    };
+
+    function parseCSV(text) {
+      const rows = [];
+      let row = [];
+      let cell = "";
+      let quoted = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const next = text[i + 1];
+
+        if (char === '"' && quoted && next === '"') {
+          cell += '"';
+          i++;
+        } else if (char === '"') {
+          quoted = !quoted;
+        } else if (char === "," && !quoted) {
+          row.push(cell);
+          cell = "";
+        } else if ((char === "\n" || char === "\r") && !quoted) {
+          if (char === "\r" && next === "\n") i++;
+          row.push(cell);
+          if (row.some(value => value.length)) rows.push(row);
+          row = [];
+          cell = "";
+        } else {
+          cell += char;
+        }
+      }
+
+      if (cell.length || row.length) {
+        row.push(cell);
+        rows.push(row);
+      }
+
+      const headers = rows.shift();
+      return rows.map(values => Object.fromEntries(headers.map((header, index) => [header, values[index] || ""])));
+    }
+
+    function strategyKey(value) {
+      return Object.keys(strategies).find(key => strategies[key] === value);
+    }
+
+    function groupRows(rows) {
+      const map = new Map();
+
+      rows.forEach(row => {
+        const key = `${row[columns.age]}|${row[columns.hours]}`;
+        if (!map.has(key)) {
+          map.set(key, {
+            age: row[columns.age],
+            hours: row[columns.hours],
+            count: 0,
+            effects: [],
+            strategies: { congruent: 0, opposite: 0, independent: 0 }
+          });
+        }
+
+        const group = map.get(key);
+        group.count += 1;
+        group.effects.push(effectScore[row[columns.effect]]);
+        group.strategies[strategyKey(row[columns.strategy])] += 1;
+      });
+
+      return Array.from(map.values()).map(group => {
+        const total = group.count || 1;
+        const avgEffect = group.effects.reduce((sum, value) => sum + value, 0) / total;
+        return {
+          ...group,
+          avgEffect,
+          proportions: {
+            congruent: group.strategies.congruent / total,
+            opposite: group.strategies.opposite / total,
+            independent: group.strategies.independent / total
+          }
+        };
+      });
+    }
+
+    function mixColor(score) {
+      if (score <= 1.66) return "#2f8d54";
+      if (score <= 2.34) return "#d6a21e";
+      return "#d85d4f";
+    }
+
+    function pct(value) {
+      return `${Math.round(value * 100)}%`;
+    }
+
+    function drawChart(groups) {
+      const svg = document.getElementById("chart");
+      const tooltip = document.getElementById("tooltip");
+      const bounds = svg.getBoundingClientRect();
+      const wrap = svg.closest(".viz-wrap");
+      const ns = "http://www.w3.org/2000/svg";
+      const vertices = {
+        congruent: { x: 410, y: 92 },
+        opposite: { x: 142, y: 548 },
+        independent: { x: 678, y: 548 }
+      };
+
+      function el(name, attrs = {}, parent = svg) {
+        const node = document.createElementNS(ns, name);
+        Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value));
+        parent.appendChild(node);
+        return node;
+      }
+
+      svg.innerHTML = "";
+
+      el("polygon", {
+        points: `${vertices.congruent.x},${vertices.congruent.y} ${vertices.opposite.x},${vertices.opposite.y} ${vertices.independent.x},${vertices.independent.y}`,
+        class: "triangle-outline"
+      });
+
+      for (let i = 1; i <= 4; i++) {
+        const t = i / 5;
+        drawIsoLine("congruent", t);
+        drawIsoLine("opposite", t);
+        drawIsoLine("independent", t);
+      }
+
+      function pointFromProportions(prop) {
+        return {
+          x: prop.congruent * vertices.congruent.x + prop.opposite * vertices.opposite.x + prop.independent * vertices.independent.x,
+          y: prop.congruent * vertices.congruent.y + prop.opposite * vertices.opposite.y + prop.independent * vertices.independent.y
+        };
+      }
+
+      function drawIsoLine(axis, value) {
+        const keys = ["congruent", "opposite", "independent"].filter(key => key !== axis);
+        const a = { congruent: 0, opposite: 0, independent: 0 };
+        const b = { congruent: 0, opposite: 0, independent: 0 };
+        a[axis] = value;
+        b[axis] = value;
+        a[keys[0]] = 1 - value;
+        b[keys[1]] = 1 - value;
+        const p1 = pointFromProportions(a);
+        const p2 = pointFromProportions(b);
+        el("line", { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, class: "grid-line" });
+      }
+
+      const labelData = [
+        { ...vertices.congruent, y: vertices.congruent.y + 44, text: "Congruente", note: "refleja como me siento", anchor: "middle" },
+        { ...vertices.opposite, x: vertices.opposite.x + 92, y: vertices.opposite.y + 44, text: "Opuesta", note: "busca cambiar el ánimo", anchor: "middle" },
+        { ...vertices.independent, x: vertices.independent.x - 92, y: vertices.independent.y + 44, text: "No depende", note: "la emoción no guía la elección", anchor: "middle" }
+      ];
+
+      labelData.forEach(label => {
+        el("text", { x: label.x, y: label.y, class: "axis-label", "text-anchor": label.anchor }).textContent = label.text;
+        el("text", { x: label.x, y: label.y + 18, class: "axis-note", "text-anchor": label.anchor }).textContent = label.note;
+      });
+
+      groups.forEach((group, index) => {
+        const point = pointFromProportions(group.proportions);
+        const radius = 10 + Math.sqrt(group.count) * 7.5;
+        const node = el("circle", {
+          cx: point.x,
+          cy: point.y,
+          r: radius,
+          fill: mixColor(group.avgEffect),
+          opacity: 0.88,
+          class: "point",
+          tabindex: "0"
+        });
+
+        el("text", {
+          x: point.x,
+          y: point.y + 3,
+          class: "point-label"
+        }).textContent = group.count;
+
+        const html = `
+          <b>${group.age}<br>${group.hours}</b>
+          ${group.count} respuesta${group.count === 1 ? "" : "s"}<br>
+          ${strategyLabels.congruent}: ${group.strategies.congruent} (${pct(group.proportions.congruent)})<br>
+          ${strategyLabels.opposite}: ${group.strategies.opposite} (${pct(group.proportions.opposite)})<br>
+          ${strategyLabels.independent}: ${group.strategies.independent} (${pct(group.proportions.independent)})<br>
+          Afectación promedio: ${group.avgEffect.toFixed(2)} de 3
+        `;
+
+        const show = event => {
+          const svgRect = svg.getBoundingClientRect();
+          const wrapRect = wrap.getBoundingClientRect();
+          const scaleX = svgRect.width / 820;
+          const scaleY = svgRect.height / 690;
+          tooltip.innerHTML = html;
+          tooltip.style.left = `${svgRect.left - wrapRect.left + point.x * scaleX}px`;
+          tooltip.style.top = `${svgRect.top - wrapRect.top + point.y * scaleY}px`;
+          tooltip.style.opacity = "1";
+          node.setAttribute("opacity", "1");
+          node.setAttribute("data-active", index);
+        };
+
+        const hide = () => {
+          tooltip.style.opacity = "0";
+          node.setAttribute("opacity", "0.88");
+        };
+
+        node.addEventListener("mouseenter", show);
+        node.addEventListener("focus", show);
+        node.addEventListener("mouseleave", hide);
+        node.addEventListener("blur", hide);
+      });
+    }
+
+    function renderSide(rows, groups) {
+      document.getElementById("totalRows").textContent = rows.length;
+
+      const totals = { congruent: 0, opposite: 0, independent: 0 };
+      rows.forEach(row => totals[strategyKey(row[columns.strategy])] += 1);
+
+      const metrics = document.getElementById("metrics");
+      metrics.innerHTML = Object.entries(totals).map(([key, value]) => `
+        <div class="metric">
+          <strong>${value}</strong>
+          <span>${strategyLabels[key]}</span>
+        </div>
+      `).join("");
+
+      const sortedStrategies = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+      const top = sortedStrategies[0];
+      const highImpactRows = rows.filter(row => row[columns.effect] === "Me afecta considerablemente");
+      const highTotals = { congruent: 0, opposite: 0, independent: 0 };
+      highImpactRows.forEach(row => highTotals[strategyKey(row[columns.strategy])] += 1);
+      const highTop = Object.entries(highTotals).sort((a, b) => b[1] - a[1])[0];
+
+      document.getElementById("insight").textContent =
+        `La estrategia más frecuente es "${strategyLabels[top[0]]}" con ${top[1]} de ${rows.length} respuestas. Entre quienes declaran que la música les afecta considerablemente, destaca "${strategyLabels[highTop[0]]}" con ${highTop[1]} de ${highImpactRows.length} respuestas.`;
+
+      document.getElementById("groupList").innerHTML = groups
+        .slice()
+        .sort((a, b) => b.count - a.count || b.avgEffect - a.avgEffect)
+        .map(group => {
+          const dominant = Object.entries(group.strategies).sort((a, b) => b[1] - a[1])[0][0];
+          return `
+            <div class="group-item" style="border-left-color:${mixColor(group.avgEffect)}">
+              <b>${group.age} · ${group.hours}</b>
+              <span>${group.count} respuestas · domina: ${strategyLabels[dominant]} · afectación ${group.avgEffect.toFixed(2)}/3</span>
+            </div>
+          `;
+        })
+        .join("");
+    }
+
+    const rows = parseCSV(document.getElementById("raw-data").textContent.trim());
+    const groups = groupRows(rows);
+    renderSide(rows, groups);
+    drawChart(groups);
+  </script>
+</body>
+</html>
